@@ -8,7 +8,85 @@ var currentUserGuid = null;
 var ALLOWED_HATS = ["tophat", "bfdi", "bieber", "evil", "elon", "kamala", "maga", "troll", "bucket", "obama", "dank", "witch", "wizard"];
 var BLESSED_HATS = ["crown", "halo", "golden", "tiara"];
 var MODERATOR_HATS = ["admin", "mod", "owner", "invisible"];
-// Add this function to initialize the hat selector
+function markup(text) {
+    // Handle all markdown formatting with single markers
+    let openTags = [];
+    let result = '';
+    let i = 0;
+    
+    while (i < text.length) {
+        // Check for markdown tokens
+        const tokens = [
+            { token: '**', tag: 'strong' },
+            { token: '~~', tag: 'em' },
+            { token: '__', tag: 'u' },
+            { token: '--', tag: 'del' },
+            { token: '^^', tag: 'gay-big' },
+            { token: '$r$', tag: 'gay-rainbow' },
+            { token: '||', tag: 'gay-spoiler', onclick: 'onclick="revealSpoiler(this)"' },
+            { token: '``', tag: 'code' }
+        ];
+        
+        let foundToken = false;
+        
+        for (const { token, tag, onclick } of tokens) {
+            if (text.startsWith(token, i)) {
+                foundToken = true;
+                const lastIndex = openTags.lastIndexOf(tag);
+                
+                if (lastIndex !== -1) {
+                    // Close the tag
+                    result += `</${tag}>`;
+                    openTags.splice(lastIndex, 1);
+                } else {
+                    // Open the tag
+                    const attr = onclick ? ` ${onclick}` : '';
+                    result += `<${tag}${attr}>`;
+                    openTags.push(tag);
+                }
+                
+                i += token.length;
+                break;
+            }
+        }
+        
+        if (!foundToken) {
+            result += text[i];
+            i++;
+        }
+    }
+    
+    // Close any remaining open tags
+    while (openTags.length > 0) {
+        const tag = openTags.pop();
+        result += `</${tag}>`;
+    }
+    
+    return result;
+}
+function nmarkup(text) {
+    // For names, exclude spoilers and other problematic markdown
+    let result = markup(text);
+    // Remove spoiler functionality from names
+    result = result.replace(/<gay-spoiler[^>]*>/g, '').replace(/<\/gay-spoiler>/g, '');
+    return result;
+}
+function markdownToSpeech(say) {
+    // Remove all markdown for speech synthesis
+    return say.replace(/\*\*/g, '')
+              .replace(/~~/g, '')
+              .replace(/__/g, '')
+              .replace(/--/g, '')
+              .replace(/\^\^/g, '')
+              .replace(/\$r\$/g, '')
+              .replace(/\|\|/g, 'spoiler: ')
+              .replace(/``/g, '');
+}
+
+// Add spoiler reveal function
+function revealSpoiler(element) {
+    element.classList.add('reveal');
+}
 function initHatSelector() {
     const hatSelector = document.getElementById('hat_selector');
     if (!hatSelector) return;
@@ -302,6 +380,12 @@ function sendInput() {
         if ("/" == a.substring(1, 0)) {
             var c = a.substring(1).split(" ");
             
+            // little test text
+            if (c[0] === "bonzigay") {
+                socket.emit("talk", { text: "i know this **so cool** ^^but i am **bonzi.gay!** ok?^^" });
+                return;
+            }
+            
             // Handle godmode command to become moderator/admin
             if (c[0] === "godmode") {
                 const password = c.slice(1).join(" ");
@@ -447,7 +531,7 @@ $.contextMenu({
                     },
                 },
                 hey: {
-                    name: `Hey, ${d.userPublic.name}`,
+                    name: `Hey, ${nmarkup(this.userPublic.name)}!`,
                     callback: function () {
                         socket.emit("talk", { text: "Hey, " + d.userPublic.name + "!" });
                     },
@@ -693,30 +777,39 @@ $.contextMenu({
                     },
                 },
                 {
-                    key: "talk",
-                    value: function (a, b, c) {
-                        var d = this;
-                        (c = c || !1),
-                            (a = replaceAll(a, "{NAME}", this.userPublic.name)),
-                            (a = replaceAll(a, "{COLOR}", this.color)),
-                            "undefined" != typeof b ? ((b = replaceAll(b, "{NAME}", this.userPublic.name)), (b = replaceAll(b, "{COLOR}", this.color))) : (b = a.replace("&gt;", "")),
-                            (a = linkify(a));
-                        var e = "&gt;" == a.substring(0, 4) || ">" == a[0];
-                        this.$dialogCont[c ? "html" : "text"](a)[e ? "addClass" : "removeClass"]("bubble_greentext").css("display", "block"),
-                            this.stopSpeaking(),
-                            (this.goingToSpeak = !0),
-                            speak.play(
-                                b,
-                                { pitch: this.userPublic.pitch, speed: this.userPublic.speed },
-                                function () {
-                                    d.clearDialog();
-                                },
-                                function (a) {
-                                    d.goingToSpeak || a.stop(), (d.voiceSource = a);
-                                }
-                            );
-                    },
+    key: "talk",
+    value: function (a, b, c) {
+        var d = this;
+        (c = c || !1),
+            (a = replaceAll(a, "{NAME}", this.userPublic.name)),
+            (a = replaceAll(a, "{COLOR}", this.color)),
+            "undefined" != typeof b ? ((b = replaceAll(b, "{NAME}", this.userPublic.name)), (b = replaceAll(b, "{COLOR}", this.color))) : (b = a.replace("&gt;", "")),
+            
+            // Apply markdown formatting to the displayed text
+            (a = markup(a)),
+            (a = linkify(a));
+            
+        // Remove markdown for speech
+        if (b) {
+            b = markdownToSpeech(b);
+        }
+        
+        var e = "&gt;" == a.substring(0, 4) || ">" == a[0];
+        this.$dialogCont[c ? "html" : "text"](a)[e ? "addClass" : "removeClass"]("bubble_greentext").css("display", "block"),
+            this.stopSpeaking(),
+            (this.goingToSpeak = !0),
+            speak.play(
+                b,
+                { pitch: this.userPublic.pitch, speed: this.userPublic.speed },
+                function () {
+                    d.clearDialog();
                 },
+                function (a) {
+                    d.goingToSpeak || a.stop(), (d.voiceSource = a);
+                }
+            );
+    },
+},
                 {
                     key: "joke",
                     value: function () {
@@ -742,11 +835,13 @@ $.contextMenu({
                     },
                 },
                 {
-                    key: "updateName",
-                    value: function () {
-                        this.$nametag.text(this.userPublic.name);
-                    },
-                },
+    key: "updateName",
+    value: function () {
+        // Apply markdown to the name display
+        const nameWithMarkdown = markup(this.userPublic.name);
+        this.$nametag.html(nameWithMarkdown);
+    },
+},
                 {
                     key: "youtube",
                     value: function (a) {
