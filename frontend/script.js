@@ -24,7 +24,8 @@ function markup(text) {
             { token: '^^', tag: 'gay-big' },
             { token: '$r$', tag: 'gay-rainbow' },
             { token: '||', tag: 'gay-spoiler', onclick: 'onclick="revealSpoiler(this)"' },
-            { token: '``', tag: 'code' }
+            { token: '``', tag: 'code' },
+            { token: '%%', tag: 'marquee' }
         ];
         
         let foundToken = false;
@@ -80,7 +81,8 @@ function markdownToSpeech(say) {
               .replace(/\^\^/g, '')
               .replace(/\$r\$/g, '')
               .replace(/\|\|/g, 'spoiler: ')
-              .replace(/``/g, '');
+              .replace(/``/g, '')
+              .replace(/%%/g, '');
 }
 
 // Add spoiler reveal function
