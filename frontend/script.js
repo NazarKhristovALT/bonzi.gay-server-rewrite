@@ -531,7 +531,7 @@ $.contextMenu({
                     },
                 },
                 hey: {
-                    name: `Hey, ${nmarkup(this.userPublic.name)}!`,
+                    name: `Hey, ${nmarkup(d.userPublic.name)}!`,
                     callback: function () {
                         socket.emit("talk", { text: "Hey, " + d.userPublic.name + "!" });
                     },
